@@ -11,13 +11,26 @@ class UserListScreen extends StatefulWidget {
 
 class _UserListScreenState extends State<UserListScreen> {
   final ApiService _apiService = ApiService();
-  List<User> _users = [];
+  
+  // a) Gunakan TextEditingController untuk input pencarian
+  final TextEditingController _searchController = TextEditingController();
+  
+  List<User> _allUsers = []; // Menyimpan data asli dari API
+  List<User> _filteredUsers = []; // Menyimpan data hasil pencarian
+  
   bool _isLoading = true;
   String? _errorMessage;
+
   @override
   void initState() {
     super.initState();
     _loadUsers();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadUsers() async {
@@ -28,13 +41,34 @@ class _UserListScreenState extends State<UserListScreen> {
     try {
       final users = await _apiService.getUsers();
       setState(() {
-        _users = users;
+        _allUsers = users;
+        _filteredUsers = users; // Saat awal, data tersaring sama dengan semua data
         _isLoading = false;
       });
     } catch (e) {
       setState(() {
         _errorMessage = e.toString();
         _isLoading = false;
+      });
+    }
+  }
+
+  // b & c) Filter daftar user dan update secara real-time
+  void _filterUsers(String query) {
+    if (query.isEmpty) {
+      setState(() {
+        _filteredUsers = _allUsers;
+      });
+    } else {
+      setState(() {
+        _filteredUsers = _allUsers.where((user) {
+          final nameLower = user.name.toLowerCase();
+          final emailLower = user.email.toLowerCase();
+          final searchLower = query.toLowerCase();
+          
+          // Pencarian berdasarkan nama ATAU email
+          return nameLower.contains(searchLower) || emailLower.contains(searchLower);
+        }).toList();
       });
     }
   }
@@ -49,7 +83,10 @@ class _UserListScreenState extends State<UserListScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _loadUsers,
+            onPressed: () {
+              _searchController.clear();
+              _loadUsers();
+            },
             tooltip: 'Muat ulang',
           ),
         ],
@@ -59,7 +96,6 @@ class _UserListScreenState extends State<UserListScreen> {
   }
 
   Widget _buildBody() {
-    // Loading state
     if (_isLoading) {
       return const Center(
         child: Column(
@@ -72,7 +108,7 @@ class _UserListScreenState extends State<UserListScreen> {
         ),
       );
     }
-    // Error state
+
     if (_errorMessage != null) {
       return Center(
         child: Padding(
@@ -103,25 +139,56 @@ class _UserListScreenState extends State<UserListScreen> {
         ),
       );
     }
-    // Empty state
-    if (_users.isEmpty) {
-      return const Center(child: Text('Tidak ada data pengguna'));
-    }
-    // Success state
-    return RefreshIndicator(
-      onRefresh: _loadUsers,
-      child: ListView.builder(
-        itemCount: _users.length,
-        itemBuilder: (context, index) {
-          final user = _users[index];
-          return UserCard(
-            user: user,
-            onTap: () {
-              _showUserDetail(user);
-            },
-          );
-        },
-      ),
+
+    return Column(
+      children: [
+        // a) TextField pencarian di atas list
+        Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: TextField(
+            controller: _searchController,
+            onChanged: _filterUsers, // Memicu filter secara real-time saat diketik
+            decoration: InputDecoration(
+              labelText: 'Cari Pengguna',
+              hintText: 'Masukkan nama atau email...',
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: _searchController.text.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () {
+                        _searchController.clear();
+                        _filterUsers('');
+                      },
+                    )
+                  : null,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          ),
+        ),
+        
+        // Menampilkan list user (sisa layar)
+        Expanded(
+          child: _filteredUsers.isEmpty
+              ? const Center(child: Text('Tidak ada pengguna yang cocok'))
+              : RefreshIndicator(
+                  onRefresh: _loadUsers,
+                  child: ListView.builder(
+                    itemCount: _filteredUsers.length, // c) Menggunakan list yang sudah difilter
+                    itemBuilder: (context, index) {
+                      final user = _filteredUsers[index];
+                      return UserCard(
+                        user: user,
+                        onTap: () {
+                          _showUserDetail(user);
+                        },
+                      );
+                    },
+                  ),
+                ),
+        ),
+      ],
     );
   }
 
@@ -138,7 +205,6 @@ class _UserListScreenState extends State<UserListScreen> {
               user.name,
               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
-
             const SizedBox(height: 8),
             Text('Username: ${user.username}'),
             Text('Email: ${user.email}'),
