@@ -9,13 +9,15 @@ class ApiService {
   static const String _baseUrl = 'https://jsonplaceholder.typicode.com';
   static const Duration _timeout = Duration(seconds: 10);
   // GET /users
-  Future<List<User>> getUsers() async {
+  // GET /users
+  // a) Tambahkan parameter timeout dengan b) Default timeout 10 detik
+  Future<List<User>> getUsers({Duration timeout = const Duration(seconds: 10)}) async {
     try {
       print('Request GET: $_baseUrl/users');
       final response = await http
           .get(Uri.parse('$_baseUrl/users'))
-          .timeout(_timeout);
-      // Logging aman: hanya status code
+          .timeout(timeout); // b) Gunakan .timeout(duration) pada request
+
       print('Response status: ${response.statusCode}');
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
@@ -26,7 +28,8 @@ class ApiService {
         );
       }
     } on TimeoutException {
-      throw Exception('Request timeout. Periksa koneksi internet Anda.');
+      // c) Tangani TimeoutException dan tampilkan pesan error yang sesuai
+      throw Exception('Request timeout setelah ${timeout.inSeconds} detik. Periksa koneksi internet Anda.');
     } on SocketException {
       throw Exception('Tidak ada koneksi internet. Periksa jaringan Anda.');
     } on FormatException {
