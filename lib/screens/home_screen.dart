@@ -99,20 +99,55 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // Fungsi Logout (menggantikan fungsi Hapus Token)
+ // Fungsi Logout dengan Konfirmasi dan Navigator
   Future<void> _logout() async {
-    await _storageService.deleteToken();
-    await _checkToken();
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Berhasil logout, token dihapus'),
-          backgroundColor: Colors.orange,
-        ),
-      );
+    // b) Tampilkan konfirmasi sebelum logout menggunakan showDialog
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Konfirmasi Logout'),
+          content: const Text('Apakah Anda yakin ingin logout?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false), // Batal
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true), // Konfirmasi
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Logout'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm == true) {
+      // a) Hapus token dari secure storage
+      await _storageService.deleteToken();
+      
+      if (mounted) {
+        // c) Kembali ke halaman login menggunakan Navigator
+        // pushAndRemoveUntil digunakan agar user tidak bisa menekan tombol 'back' ke halaman sebelumnya setelah logout
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          (Route<dynamic> route) => false,
+        );
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Berhasil logout'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
     }
   }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
